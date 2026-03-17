@@ -12,7 +12,7 @@ SERIAL_LOG="$TMPDIR/serial.log"
 SERIAL_IN="$TMPDIR/serial.in"
 FLOPPY="$OUTPUT_DIR/floppinux.img"
 
-# shellcheck disable=SC2329
+# shellcheck disable=SC2015,SC2317,SC2329
 cleanup() {
     exec 3>&- 2>/dev/null || true
     [ -n "${TAIL_PID:-}" ] && kill "$TAIL_PID" 2>/dev/null || true
