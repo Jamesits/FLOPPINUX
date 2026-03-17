@@ -182,7 +182,7 @@ CONFIG_ASH_OPTIMIZE_FOR_SIZE=y
 CONFIG_ASH_ALIAS=y
 BUSYBOX_OPTS
 
-make ARCH=x86 olddefconfig || error_exit "BusyBox olddefconfig failed"
+make ARCH=x86 silentoldconfig || error_exit "BusyBox silentoldconfig failed"
 
 info "Compiling BusyBox..."
 make ARCH=x86 -j"$(nproc)" 2>&1 | tail -5 || error_exit "BusyBox compilation failed"

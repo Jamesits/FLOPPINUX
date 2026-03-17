@@ -3,11 +3,10 @@ name: FLOPPINUX Build Pipeline
 on:
   push:
     branches:
-      - main
-      - develop
+      - trunk
   pull_request:
     branches:
-      - main
+      - trunk
   workflow_dispatch:
 
 jobs:
