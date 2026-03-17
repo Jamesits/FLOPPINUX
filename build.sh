@@ -154,33 +154,19 @@ sed -i "s|.*CONFIG_SYSROOT.*|CONFIG_SYSROOT=\"${BASE}/${MUSL_CROSS_TARGET}/${MUS
 sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-march=i486 -mtune=i486\"|" .config
 sed -i "s|.*CONFIG_EXTRA_LDFLAGS.*|CONFIG_EXTRA_LDFLAGS=\"\"|" .config
 
-# Settings: static binary, large file support
-cat >> .config << 'BUSYBOX_OPTS'
-CONFIG_LFS=y
-CONFIG_STATIC=y
-CONFIG_CAT=y
-CONFIG_CP=y
-CONFIG_DF=y
-CONFIG_ECHO=y
-CONFIG_LS=y
-CONFIG_MKDIR=y
-CONFIG_MV=y
-CONFIG_RM=y
-CONFIG_SYNC=y
-CONFIG_TEST=y
-CONFIG_TEST1=y
-CONFIG_TEST2=y
-CONFIG_CLEAR=y
-CONFIG_VI=y
-CONFIG_INIT=y
-CONFIG_MDEV=y
-CONFIG_MOUNT=y
-CONFIG_FEATURE_MOUNT_FLAGS=y
-CONFIG_UMOUNT=y
-CONFIG_ASH=y
-CONFIG_ASH_OPTIMIZE_FOR_SIZE=y
-CONFIG_ASH_ALIAS=y
-BUSYBOX_OPTS
+# Settings: static binary, large file support.
+# Use sed to replace the allnoconfig "# CONFIG_X is not set" entries in-place.
+# Appending duplicate entries (via cat >>) triggers kconfig "reassignment" warnings
+# that cause the appended values to be silently ignored by silentoldconfig.
+for bb_opt in LFS STATIC CAT CP DF ECHO LS MKDIR MV RM SYNC TEST TEST1 TEST2 \
+              CLEAR VI INIT MDEV MOUNT FEATURE_MOUNT_FLAGS UMOUNT \
+              ASH ASH_OPTIMIZE_FOR_SIZE ASH_ALIAS; do
+    if grep -q "^# CONFIG_${bb_opt} is not set$" .config; then
+        sed -i "s|^# CONFIG_${bb_opt} is not set$|CONFIG_${bb_opt}=y|" .config
+    elif ! grep -q "^CONFIG_${bb_opt}=y$" .config; then
+        echo "CONFIG_${bb_opt}=y" >> .config
+    fi
+done
 
 make ARCH=x86 silentoldconfig || error_exit "BusyBox silentoldconfig failed"
 
