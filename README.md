@@ -14,7 +14,7 @@ Goals:
 
 - Fit a bootable Linux with userland inside a 1.44MiB floppy diskette
 - Hardware requirements: i486 CPU, 20MiB RAM
-- 8250/16550 serial support
+- 8250/16550 serial support (for headless machines and CI testing)
 - CI/CD w/ GitHub Actions
 
 ## Usage
