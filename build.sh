@@ -96,6 +96,10 @@ $KC --enable SYSFS
 $KC --enable NLS
 $KC --enable NLS_CODEPAGE_437
 
+# Device Drivers -> Character devices -> Serial drivers -> 16550 UART
+$KC --enable SERIAL_8250
+$KC --enable SERIAL_8250_CONSOLE
+
 # Library routines -> XZ decompression (disable all BCJ sub-filters)
 $KC --enable XZ_DEC
 $KC --disable XZ_DEC_X86
@@ -170,6 +174,15 @@ echo "initramfs..."
 fakeroot sh -c '
     mknod dev/console c 5 1
     mknod dev/null c 1 3
+    mknod dev/ttyS0 c 4 64
+    mknod dev/tty0 c 4 0
+    mknod dev/tty1 c 4 1
+    mknod dev/tty2 c 4 2
+    mknod dev/tty3 c 4 3
+    mknod dev/tty4 c 4 4
+    mknod dev/tty5 c 4 5
+    mknod dev/tty6 c 4 6
+    mknod dev/tty7 c 4 7
     chown -R root:root .
     find . | cpio -H newc -o 2>/dev/null | xz --check=crc32 --lzma2=dict=512KiB -e > ../rootfs.cpio.xz
 ' || error_exit "Failed to create initramfs"

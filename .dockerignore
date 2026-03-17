@@ -1,2 +1,6 @@
 /output/
 /.git*
+/README.md
+/LICENSE
+/renovate.json
+/Makefile
