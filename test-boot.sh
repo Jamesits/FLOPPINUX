@@ -53,7 +53,7 @@ qemu-system-i386 \
     -drive file="$FLOPPY",format=raw,if=floppy,readonly=on \
     -boot menu=on \
     -net none \
-    -m 32 \
+    -m 20 \
     -display none \
     -serial stdio \
     -no-reboot \
