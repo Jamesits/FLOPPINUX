@@ -1,0 +1,224 @@
+name: FLOPPINUX Build Pipeline
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build FLOPPINUX
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          echo "Installing build dependencies..."
+          sudo apt-get update -y || { echo "APT update failed"; exit 1; }
+
+          sudo apt-get install -y \
+            build-essential \
+            bc \
+            flex \
+            bison \
+            cpio \
+            xz-utils \
+            wget \
+            curl \
+            fakeroot \
+            dosfstools \
+            syslinux \
+            mtools \
+            libelf-dev \
+            libssl-dev || { echo "Failed to install dependencies"; exit 1; }
+
+          echo "Verifying installations..."
+          for tool in gcc make bc cpio xz mkdosfs syslinux mcopy fakeroot; do
+            which "$tool" > /dev/null || { echo "ERROR: $tool not found"; exit 1; }
+          done
+
+          echo "Dependencies installed successfully"
+
+      - name: Verify script permissions
+        run: |
+          chmod +x build.sh || { echo "Failed to set script permissions"; exit 1; }
+          ls -la build.sh || { echo "Build script not found"; exit 1; }
+
+      - name: Run build script
+        run: |
+          echo "Starting FLOPPINUX build..."
+
+          if [ ! -f "./build.sh" ]; then
+            echo "ERROR: build.sh not found in repository root"
+            exit 1
+          fi
+
+          if ! ./build.sh; then
+            echo "ERROR: Build script failed with exit code $?"
+            exit 1
+          fi
+        shell: bash
+
+      - name: Verify build artifacts
+        if: success()
+        run: |
+          echo "Verifying build artifacts..."
+
+          OUTPUT_DIR="./output"
+
+          if [ ! -d "$OUTPUT_DIR" ]; then
+            echo "ERROR: Output directory not found"
+            exit 1
+          fi
+
+          # Verify kernel image
+          if [ ! -f "$OUTPUT_DIR/bzImage" ]; then
+            echo "ERROR: Kernel image (bzImage) not found"
+            exit 1
+          fi
+          echo "✓ Kernel image found: $(du -h "$OUTPUT_DIR/bzImage" | cut -f1)"
+
+          # Verify initramfs
+          if [ ! -f "$OUTPUT_DIR/rootfs.cpio.xz" ]; then
+            echo "ERROR: Initramfs (rootfs.cpio.xz) not found"
+            exit 1
+          fi
+          echo "✓ Initramfs found: $(du -h "$OUTPUT_DIR/rootfs.cpio.xz" | cut -f1)"
+
+          # Verify floppy image
+          if [ ! -f "$OUTPUT_DIR/floppinux.img" ]; then
+            echo "ERROR: Floppy image (floppinux.img) not found"
+            exit 1
+          fi
+          FLOPPY_SIZE=$(stat -c%s "$OUTPUT_DIR/floppinux.img")
+          echo "✓ Floppy image found: ${FLOPPY_SIZE} bytes"
+
+          # Check floppy image size constraint (1.44MB = 1474560 bytes)
+          MAX_SIZE=1474560
+          if [ "$FLOPPY_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "ERROR: Floppy image exceeds 1.44MB limit (${FLOPPY_SIZE}/${MAX_SIZE})"
+            exit 1
+          fi
+          echo "✓ Floppy image within 1.44MB limit"
+
+          echo ""
+          echo "Build artifacts:"
+          ls -lh "$OUTPUT_DIR/"
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: floppinux-build
+          path: output/
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Create build report
+        if: always()
+        run: |
+          cat > build_report.txt << 'HEADER'
+          FLOPPINUX Build Report
+          ======================
+          HEADER
+
+          echo "Build Status: $([ $? -eq 0 ] && echo 'SUCCESS' || echo 'FAILURE')" >> build_report.txt
+          echo "Timestamp: $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> build_report.txt
+          echo "Runner: ubuntu-latest" >> build_report.txt
+          echo "Commit: ${{ github.sha }}" >> build_report.txt
+
+          if [ -d "./output" ]; then
+            echo "" >> build_report.txt
+            echo "Artifacts:" >> build_report.txt
+            ls -lh "./output/" >> build_report.txt
+          fi
+
+      - name: Upload build report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-report
+          path: build_report.txt
+          retention-days: 30
+
+  lint-scripts:
+    name: Lint Build Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y shellcheck
+          shellcheck --version
+
+      - name: Lint build.sh
+        run: |
+          echo "Linting build.sh..."
+          if [ ! -f "build.sh" ]; then
+            echo "ERROR: build.sh not found"
+            exit 1
+          fi
+
+          if ! shellcheck -x build.sh; then
+            echo "ERROR: Script linting failed"
+            exit 1
+          fi
+          echo "✓ Script linting passed"
+
+      - name: Check script syntax
+        run: |
+          echo "Checking script syntax..."
+          if ! bash -n build.sh; then
+            echo "ERROR: Script syntax check failed"
+            exit 1
+          fi
+          echo "✓ Syntax check passed"
+
+      - name: Verify critical commands
+        run: |
+          if grep -q "set -euo pipefail" build.sh; then
+            echo "✓ Error handling enabled (set -euo pipefail)"
+          else
+            echo "WARNING: Error handling might be incomplete"
+          fi
+
+          if grep -q "error_exit" build.sh; then
+            echo "✓ Error exit function defined"
+          else
+            echo "ERROR: No error exit function found"
+            exit 1
+          fi
+
+  notify:
+    name: Build Notification
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [build, lint-scripts]
+
+    steps:
+      - name: Build Status
+        run: |
+          if [ "${{ needs.build.result }}" == "success" ] && [ "${{ needs.lint-scripts.result }}" == "success" ]; then
+            echo "✓ All checks passed"
+            exit 0
+          else
+            echo "✗ Build or linting failed"
+            exit 1
+          fi
