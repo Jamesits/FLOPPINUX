@@ -1,6 +1,8 @@
 [submodule "linux"]
 	path = linux
 	url = https://github.com/gregkh/linux.git
+	branch = v6.14.11
 [submodule "busybox"]
 	path = busybox
 	url = https://github.com/mirror/busybox.git
+	branch = 1_36_1
