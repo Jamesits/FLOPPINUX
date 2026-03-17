@@ -27,6 +27,6 @@ jobs:
           sudo apt-get install -y shellcheck
           shellcheck --version
 
-      - name: Lint build.sh
+      - name: Lint
         run: |
-          shellcheck -x build.sh
+          shellcheck -x *.sh
