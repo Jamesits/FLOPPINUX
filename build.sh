@@ -19,10 +19,6 @@ error_exit() {
     exit 1
 }
 
-info() {
-    echo "==> $1"
-}
-
 cleanup() {
     if mountpoint -q /tmp/floppinux-mnt 2>/dev/null; then
         sudo umount /tmp/floppinux-mnt 2>/dev/null || true
@@ -33,10 +29,7 @@ trap cleanup EXIT
 rm -rf "$BASE" "$OUTPUT"
 mkdir -p "$BASE" "$OUTPUT"
 
-###############################################################################
-# Cross Compiler
-###############################################################################
-info "Downloading i686 musl cross compiler..."
+echo "cross compiler..."
 cd "$BASE"
 wget -q "https://github.com/cross-tools/musl-cross/releases/download/${MUSL_CROSS_VERSION}/${MUSL_CROSS_TARGET}.tar.xz" \
     || error_exit "Failed to download cross compiler"
@@ -45,12 +38,8 @@ rm "${MUSL_CROSS_TARGET}.tar.xz"
 
 CROSS_PREFIX="$BASE/${MUSL_CROSS_TARGET}/bin/${MUSL_CROSS_TARGET}-"
 "${CROSS_PREFIX}gcc" --version > /dev/null 2>&1 || error_exit "Cross compiler not functional"
-info "Cross compiler ready"
 
-###############################################################################
-# Linux Kernel
-###############################################################################
-info "Downloading Linux kernel v${KERNEL_VERSION}..."
+echo "kernel..."
 cd "$BASE"
 wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" \
     || error_exit "Failed to download kernel"
@@ -58,7 +47,7 @@ tar xf "linux-${KERNEL_VERSION}.tar.xz"
 rm "linux-${KERNEL_VERSION}.tar.xz"
 cd "linux-${KERNEL_VERSION}"
 
-info "Configuring kernel (headless)..."
+echo "configuring kernel..."
 make ARCH=x86 tinyconfig || error_exit "tinyconfig failed"
 
 KC="./scripts/config --file .config"
@@ -123,18 +112,14 @@ $KC --disable XZ_DEC_SPARC
 # Resolve all dependencies
 make ARCH=x86 olddefconfig || error_exit "olddefconfig failed"
 
-info "Compiling kernel (this may take a while)..."
+echo "compiling kernel..."
 make ARCH=x86 bzImage -j"$(nproc)" 2>&1 | tail -5 || error_exit "Kernel compilation failed"
 
 KERNEL_PATH="arch/x86/boot/bzImage"
 [ -f "$KERNEL_PATH" ] || error_exit "bzImage not found after compilation"
 cp "$KERNEL_PATH" "$BASE/bzImage"
-info "Kernel compiled: $(du -h "$BASE/bzImage" | cut -f1)"
 
-###############################################################################
-# BusyBox
-###############################################################################
-info "Downloading BusyBox..."
+echo "busybox..."
 cd "$BASE"
 wget -q "https://github.com/mirror/busybox/archive/refs/tags/${BUSYBOX_TAG}.tar.gz" \
     || error_exit "Failed to download BusyBox"
@@ -142,7 +127,7 @@ tar xzf "${BUSYBOX_TAG}.tar.gz"
 rm "${BUSYBOX_TAG}.tar.gz"
 cd "busybox-${BUSYBOX_TAG}"
 
-info "Configuring BusyBox (headless)..."
+echo "configuring busybox..."
 make ARCH=x86 allnoconfig || error_exit "allnoconfig failed"
 
 # Arch Linux lxdialog fix (harmless on other distros)
@@ -176,20 +161,16 @@ done
 
 { yes "" || true; } | make ARCH=x86 oldconfig || error_exit "BusyBox oldconfig failed"
 
-info "Compiling BusyBox..."
+echo "compiling busybox..."
 make ARCH=x86 -j"$(nproc)" 2>&1 | tail -5 || error_exit "BusyBox compilation failed"
 make ARCH=x86 install || error_exit "BusyBox install failed"
 
 mv _install "$BASE/filesystem"
-info "BusyBox compiled successfully"
 
-###############################################################################
-# Filesystem
-###############################################################################
-info "Building root filesystem..."
+echo "filesystem..."
 cd "$BASE/filesystem"
 
-mkdir -pv dev proc etc/init.d sys tmp home
+mkdir -p dev proc etc/init.d sys tmp home
 
 # Welcome message
 cat > welcome << 'WELCOME_EOF'
@@ -237,8 +218,7 @@ EOF
 
 chmod +x etc/init.d/rc
 
-# Create initramfs with fakeroot (handles device nodes + root ownership without sudo)
-info "Creating initramfs (rootfs.cpio.xz)..."
+echo "initramfs..."
 fakeroot sh -c '
     mknod dev/console c 5 1
     mknod dev/null c 1 3
@@ -246,12 +226,7 @@ fakeroot sh -c '
     find . | cpio -H newc -o 2>/dev/null | xz --check=crc32 --lzma2=dict=512KiB -e > ../rootfs.cpio.xz
 ' || error_exit "Failed to create initramfs"
 
-info "Initramfs created: $(du -h "$BASE/rootfs.cpio.xz" | cut -f1)"
-
-###############################################################################
-# Boot Image
-###############################################################################
-info "Assembling floppy boot image..."
+echo "floppy image..."
 cd "$BASE"
 
 # Syslinux bootloader config
@@ -290,23 +265,9 @@ if [ "$FLOPPY_SIZE" -gt "$MAX_SIZE" ]; then
     error_exit "Floppy image exceeds 1.44MB: ${FLOPPY_SIZE} > ${MAX_SIZE}"
 fi
 
-# Show free space on image
-info "Floppy image contents:"
-mdir -i floppinux.img :: 2>/dev/null || true
-
-###############################################################################
-# Output
-###############################################################################
 cp "$BASE/bzImage" "$OUTPUT/"
 cp "$BASE/rootfs.cpio.xz" "$OUTPUT/"
 cp "$BASE/floppinux.img" "$OUTPUT/"
 
-info "Build complete!"
-echo ""
-echo "FLOPPINUX v0.3.1 Build Summary"
-echo "==============================="
-echo "Kernel:    $(du -h "$OUTPUT/bzImage" | cut -f1) (bzImage)"
-echo "Rootfs:    $(du -h "$OUTPUT/rootfs.cpio.xz" | cut -f1) (rootfs.cpio.xz)"
-echo "Image:     $(du -h "$OUTPUT/floppinux.img" | cut -f1) (floppinux.img)"
-echo ""
+echo "done"
 ls -lh "$OUTPUT/"
