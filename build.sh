@@ -167,7 +167,7 @@ mv "$BBBUILD/_install" "$BASE/filesystem"
 echo "filesystem..."
 cd "$BASE/filesystem"
 
-mkdir -p dev proc etc/init.d sys tmp home
+mkdir -p dev proc etc/init.d sys tmp home mnt boot
 
 cp -r "$REPO_ROOT/rootfs_overrides/." .
 
