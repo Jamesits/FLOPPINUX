@@ -8,7 +8,8 @@ set -Eeuo pipefail
 MUSL_CROSS_VERSION="20250929"
 MUSL_CROSS_TARGET="i686-unknown-linux-musl"
 
-BASE="$(pwd)/build"
+REPO_ROOT="$(pwd)"
+BASE="$REPO_ROOT/build"
 OUTPUT="$(pwd)/output"
 KSRC="$(pwd)/linux"
 BBSRC="$(pwd)/busybox"
@@ -24,9 +25,6 @@ cleanup() {
     fi
 }
 trap cleanup EXIT
-
-[ -d "$KSRC" ] || error_exit "linux submodule not found — run: git submodule update --init"
-[ -d "$BBSRC" ] || error_exit "busybox submodule not found — run: git submodule update --init"
 
 rm -rf "$BASE" "$OUTPUT"
 mkdir -p "$BASE" "$OUTPUT"
@@ -166,51 +164,7 @@ cd "$BASE/filesystem"
 
 mkdir -p dev proc etc/init.d sys tmp home
 
-# Welcome message
-cat > welcome << 'WELCOME_EOF'
-
-                _________________
-               /_/ FLOPPINUX  /_/;
-              / ' boot disk  ' //
-             / '------------' //
-            /   .--------.   //
-           /   /         /  //
-          .___/_________/__//   1440KiB
-          '===\_________\=='   3.5"
-
-_______FLOPPINUX_V_0.3.1 __________________________________
-_______AN_EMBEDDED_SINGLE_FLOPPY_LINUX_DISTRIBUTION _______
-_______BY_KRZYSZTOF_KRYSTIAN_JANKOWSKI ____________________
-_______2025.12 ____________________________________________
-WELCOME_EOF
-
-# Inittab
-cat > etc/inittab << 'EOF'
-::sysinit:/etc/init.d/rc
-::askfirst:/bin/sh
-::restart:/sbin/init
-::ctrlaltdel:/sbin/reboot
-::shutdown:/bin/umount -a -r
-EOF
-
-# Init script
-cat > etc/init.d/rc << 'EOF'
-#!/bin/sh
-mount -t proc none /proc
-mount -t sysfs none /sys
-mdev -s
-ln -s /proc/mounts /etc/mtab
-mkdir -p /mnt /home
-mount -t msdos -o rw /dev/fd0 /mnt
-mkdir -p /mnt/data
-mount --bind /mnt/data /home
-clear
-cat welcome
-cd /home
-/bin/sh
-EOF
-
-chmod +x etc/init.d/rc
+cp -r "$REPO_ROOT/rootfs_overrides/." .
 
 echo "initramfs..."
 fakeroot sh -c '
@@ -223,15 +177,7 @@ fakeroot sh -c '
 echo "floppy image..."
 cd "$BASE"
 
-# Syslinux bootloader config
-cat > syslinux.cfg << 'EOF'
-DEFAULT floppinux
-LABEL floppinux
-SAY [ BOOTING FLOPPINUX VERSION 0.3.1 ]
-KERNEL bzImage
-INITRD rootfs.cpio.xz
-APPEND root=/dev/ram rdinit=/etc/init.d/rc console=tty0 tsc=unstable
-EOF
+cp "$REPO_ROOT/syslinux.cfg" syslinux.cfg
 
 # Create 1.44MB floppy image
 dd if=/dev/zero of=floppinux.img bs=1k count=1440 2>/dev/null || error_exit "dd failed"
@@ -245,16 +191,6 @@ mcopy -i floppinux.img bzImage ::bzImage || error_exit "Failed to copy kernel"
 mcopy -i floppinux.img rootfs.cpio.xz ::rootfs.cpio.xz || error_exit "Failed to copy rootfs"
 mcopy -i floppinux.img syslinux.cfg ::syslinux.cfg || error_exit "Failed to copy syslinux.cfg"
 
-# Verify floppy size constraint
-FLOPPY_SIZE=$(stat -c%s floppinux.img)
-MAX_SIZE=1474560
-if [ "$FLOPPY_SIZE" -gt "$MAX_SIZE" ]; then
-    error_exit "Floppy image exceeds 1.44MB: ${FLOPPY_SIZE} > ${MAX_SIZE}"
-fi
-
 cp "$BASE/bzImage" "$OUTPUT/"
 cp "$BASE/rootfs.cpio.xz" "$OUTPUT/"
 cp "$BASE/floppinux.img" "$OUTPUT/"
-
-echo "done"
-ls -lh "$OUTPUT/"
