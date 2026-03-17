@@ -132,7 +132,7 @@ sed -i 's/main() {}/int main() {}/' "$BBSRC/scripts/kconfig/lxdialog/check-lxdia
 # Cross compiler paths
 sed -i "s|.*CONFIG_CROSS_COMPILER_PREFIX.*|CONFIG_CROSS_COMPILER_PREFIX=\"${CROSS_PREFIX}\"|" "$BBBUILD/.config"
 sed -i "s|.*CONFIG_SYSROOT.*|CONFIG_SYSROOT=\"${BASE}/${MUSL_CROSS_TARGET}/${MUSL_CROSS_TARGET}/sysroot\"|" "$BBBUILD/.config"
-sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-march=i486 -mtune=i486\"|" "$BBBUILD/.config"
+sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-march=i486 -mtune=i486 -Os\"|" "$BBBUILD/.config"
 sed -i "s|.*CONFIG_EXTRA_LDFLAGS.*|CONFIG_EXTRA_LDFLAGS=\"\"|" "$BBBUILD/.config"
 
 # Settings: static binary, large file support, selected applets
@@ -146,7 +146,7 @@ bb_enable() {
     fi
 }
 
-for opt in CONFIG_LFS CONFIG_STATIC \
+for opt in CONFIG_LFS CONFIG_STATIC CONFIG_CC_OPTIMIZE_FOR_SIZE \
     CONFIG_CAT CONFIG_CP CONFIG_DF CONFIG_ECHO CONFIG_LS CONFIG_MKDIR \
     CONFIG_MV CONFIG_RM CONFIG_SYNC CONFIG_TEST CONFIG_TEST1 CONFIG_TEST2 \
     CONFIG_CLEAR CONFIG_VI CONFIG_INIT CONFIG_MDEV \
