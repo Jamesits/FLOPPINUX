@@ -151,7 +151,8 @@ for opt in CONFIG_LFS CONFIG_STATIC \
     CONFIG_MV CONFIG_RM CONFIG_SYNC CONFIG_TEST CONFIG_TEST1 CONFIG_TEST2 \
     CONFIG_CLEAR CONFIG_VI CONFIG_INIT CONFIG_MDEV \
     CONFIG_MOUNT CONFIG_FEATURE_MOUNT_FLAGS CONFIG_UMOUNT \
-    CONFIG_ASH CONFIG_ASH_OPTIMIZE_FOR_SIZE CONFIG_ASH_ALIAS; do
+    CONFIG_ASH CONFIG_ASH_OPTIMIZE_FOR_SIZE CONFIG_ASH_ALIAS \
+    CONFIG_GETTY; do
     bb_enable "$opt"
 done
 
@@ -182,7 +183,6 @@ fakeroot sh -c '
     mknod dev/tty4 c 4 4
     mknod dev/tty5 c 4 5
     mknod dev/tty6 c 4 6
-    mknod dev/tty7 c 4 7
     chown -R root:root .
     find . | cpio -H newc -o 2>/dev/null | xz --check=crc32 --lzma2=dict=512KiB -e > ../rootfs.cpio.xz
 ' || error_exit "Failed to create initramfs"
