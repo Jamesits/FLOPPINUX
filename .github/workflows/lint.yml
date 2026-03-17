@@ -1,0 +1,32 @@
+name: Lint
+
+on:
+  push:
+    branches:
+      - trunk
+      - develop
+  pull_request:
+    branches:
+      - trunk
+  workflow_dispatch:
+
+jobs:
+  lint-scripts:
+    name: Lint Build Scripts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install shellcheck
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y shellcheck
+          shellcheck --version
+
+      - name: Lint build.sh
+        run: |
+          shellcheck -x build.sh; then
