@@ -2,6 +2,5 @@
 mount -t proc none /proc
 mount -t sysfs none /sys
 mdev -s
-ln -s /proc/mounts /etc/mtab
 mkdir -p /mnt /home /boot
 mount -t msdos -o ro /dev/fd0 /boot
