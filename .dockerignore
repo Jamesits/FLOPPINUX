@@ -1,5 +1,2 @@
-build/
-output/
-.git/
-.github/
-*.img
+/output/
+/.git*
