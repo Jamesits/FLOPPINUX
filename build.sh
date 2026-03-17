@@ -1,18 +1,17 @@
 #!/bin/bash
-set -euo pipefail
+set -Eeuo pipefail
 
 # FLOPPINUX Automated Build Script
 # Based on FLOPPINUX v0.3.1 by Krzysztof Krystian Jankowski
 # Headless build - no interactive menuconfig, uses scripted config
 
-KERNEL_VERSION="6.14.11"
-KERNEL_MAJOR="6"
-BUSYBOX_TAG="1_36_1"
 MUSL_CROSS_VERSION="20250929"
 MUSL_CROSS_TARGET="i686-unknown-linux-musl"
 
 BASE="$(pwd)/build"
 OUTPUT="$(pwd)/output"
+KSRC="$(pwd)/linux"
+BBSRC="$(pwd)/busybox"
 
 error_exit() {
     echo "ERROR: $1" >&2
@@ -25,6 +24,9 @@ cleanup() {
     fi
 }
 trap cleanup EXIT
+
+[ -d "$KSRC" ] || error_exit "linux submodule not found — run: git submodule update --init"
+[ -d "$BBSRC" ] || error_exit "busybox submodule not found — run: git submodule update --init"
 
 rm -rf "$BASE" "$OUTPUT"
 mkdir -p "$BASE" "$OUTPUT"
@@ -40,17 +42,13 @@ CROSS_PREFIX="$BASE/${MUSL_CROSS_TARGET}/bin/${MUSL_CROSS_TARGET}-"
 "${CROSS_PREFIX}gcc" --version > /dev/null 2>&1 || error_exit "Cross compiler not functional"
 
 echo "kernel..."
-cd "$BASE"
-wget -q "https://cdn.kernel.org/pub/linux/kernel/v${KERNEL_MAJOR}.x/linux-${KERNEL_VERSION}.tar.xz" \
-    || error_exit "Failed to download kernel"
-tar xf "linux-${KERNEL_VERSION}.tar.xz"
-rm "linux-${KERNEL_VERSION}.tar.xz"
-cd "linux-${KERNEL_VERSION}"
+KBUILD="$BASE/linux-build"
+mkdir -p "$KBUILD"
 
 echo "configuring kernel..."
-make ARCH=x86 tinyconfig || error_exit "tinyconfig failed"
+make -C "$KSRC" O="$KBUILD" ARCH=x86 tinyconfig || error_exit "tinyconfig failed"
 
-KC="./scripts/config --file .config"
+KC="$KSRC/scripts/config --file $KBUILD/.config"
 
 # General Setup -> Configure standard kernel features -> printk
 $KC --enable EXPERT
@@ -110,43 +108,39 @@ $KC --disable XZ_DEC_ARMTHUMB
 $KC --disable XZ_DEC_SPARC
 
 # Resolve all dependencies
-make ARCH=x86 olddefconfig || error_exit "olddefconfig failed"
+make -C "$KSRC" O="$KBUILD" ARCH=x86 olddefconfig || error_exit "olddefconfig failed"
 
 echo "compiling kernel..."
-make ARCH=x86 bzImage -j"$(nproc)" 2>&1 | tail -5 || error_exit "Kernel compilation failed"
+make -C "$KSRC" O="$KBUILD" ARCH=x86 bzImage -j"$(nproc)" 2>&1 | tail -5 || error_exit "Kernel compilation failed"
 
-KERNEL_PATH="arch/x86/boot/bzImage"
+KERNEL_PATH="$KBUILD/arch/x86/boot/bzImage"
 [ -f "$KERNEL_PATH" ] || error_exit "bzImage not found after compilation"
 cp "$KERNEL_PATH" "$BASE/bzImage"
 
 echo "busybox..."
-cd "$BASE"
-wget -q "https://github.com/mirror/busybox/archive/refs/tags/${BUSYBOX_TAG}.tar.gz" \
-    || error_exit "Failed to download BusyBox"
-tar xzf "${BUSYBOX_TAG}.tar.gz"
-rm "${BUSYBOX_TAG}.tar.gz"
-cd "busybox-${BUSYBOX_TAG}"
+BBBUILD="$BASE/busybox-build"
+mkdir -p "$BBBUILD"
 
 echo "configuring busybox..."
-make ARCH=x86 allnoconfig || error_exit "allnoconfig failed"
+make -C "$BBSRC" O="$BBBUILD" ARCH=x86 allnoconfig || error_exit "allnoconfig failed"
 
 # Arch Linux lxdialog fix (harmless on other distros)
-sed -i 's/main() {}/int main() {}/' scripts/kconfig/lxdialog/check-lxdialog.sh 2>/dev/null || true
+sed -i 's/main() {}/int main() {}/' "$BBSRC/scripts/kconfig/lxdialog/check-lxdialog.sh" 2>/dev/null || true
 
 # Cross compiler paths
-sed -i "s|.*CONFIG_CROSS_COMPILER_PREFIX.*|CONFIG_CROSS_COMPILER_PREFIX=\"${CROSS_PREFIX}\"|" .config
-sed -i "s|.*CONFIG_SYSROOT.*|CONFIG_SYSROOT=\"${BASE}/${MUSL_CROSS_TARGET}/${MUSL_CROSS_TARGET}/sysroot\"|" .config
-sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-march=i486 -mtune=i486\"|" .config
-sed -i "s|.*CONFIG_EXTRA_LDFLAGS.*|CONFIG_EXTRA_LDFLAGS=\"\"|" .config
+sed -i "s|.*CONFIG_CROSS_COMPILER_PREFIX.*|CONFIG_CROSS_COMPILER_PREFIX=\"${CROSS_PREFIX}\"|" "$BBBUILD/.config"
+sed -i "s|.*CONFIG_SYSROOT.*|CONFIG_SYSROOT=\"${BASE}/${MUSL_CROSS_TARGET}/${MUSL_CROSS_TARGET}/sysroot\"|" "$BBBUILD/.config"
+sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-march=i486 -mtune=i486\"|" "$BBBUILD/.config"
+sed -i "s|.*CONFIG_EXTRA_LDFLAGS.*|CONFIG_EXTRA_LDFLAGS=\"\"|" "$BBBUILD/.config"
 
 # Settings: static binary, large file support, selected applets
 # Enable options in-place (avoid duplicate entries that confuse oldconfig)
 bb_enable() {
     local opt="$1"
-    if grep -q "# ${opt} is not set" .config; then
-        sed -i "s/^# ${opt} is not set$/${opt}=y/" .config
-    elif ! grep -q "^${opt}=" .config; then
-        echo "${opt}=y" >> .config
+    if grep -q "# ${opt} is not set" "$BBBUILD/.config"; then
+        sed -i "s/^# ${opt} is not set$/${opt}=y/" "$BBBUILD/.config"
+    elif ! grep -q "^${opt}=" "$BBBUILD/.config"; then
+        echo "${opt}=y" >> "$BBBUILD/.config"
     fi
 }
 
@@ -159,13 +153,13 @@ for opt in CONFIG_LFS CONFIG_STATIC \
     bb_enable "$opt"
 done
 
-{ yes "" || true; } | make ARCH=x86 oldconfig || error_exit "BusyBox oldconfig failed"
+{ yes "" || true; } | make -C "$BBSRC" O="$BBBUILD" ARCH=x86 oldconfig || error_exit "BusyBox oldconfig failed"
 
 echo "compiling busybox..."
-make ARCH=x86 -j"$(nproc)" 2>&1 | tail -5 || error_exit "BusyBox compilation failed"
-make ARCH=x86 install || error_exit "BusyBox install failed"
+make -C "$BBSRC" O="$BBBUILD" ARCH=x86 -j"$(nproc)" 2>&1 | tail -5 || error_exit "BusyBox compilation failed"
+make -C "$BBSRC" O="$BBBUILD" ARCH=x86 install || error_exit "BusyBox install failed"
 
-mv _install "$BASE/filesystem"
+mv "$BBBUILD/_install" "$BASE/filesystem"
 
 echo "filesystem..."
 cd "$BASE/filesystem"
@@ -239,11 +233,6 @@ INITRD rootfs.cpio.xz
 APPEND root=/dev/ram rdinit=/etc/init.d/rc console=tty0 tsc=unstable
 EOF
 
-# Sample user file
-cat > hello.txt << 'EOF'
-Hello, FLOPPINUX user!
-EOF
-
 # Create 1.44MB floppy image
 dd if=/dev/zero of=floppinux.img bs=1k count=1440 2>/dev/null || error_exit "dd failed"
 
@@ -255,8 +244,6 @@ syslinux --install floppinux.img || error_exit "syslinux install failed"
 mcopy -i floppinux.img bzImage ::bzImage || error_exit "Failed to copy kernel"
 mcopy -i floppinux.img rootfs.cpio.xz ::rootfs.cpio.xz || error_exit "Failed to copy rootfs"
 mcopy -i floppinux.img syslinux.cfg ::syslinux.cfg || error_exit "Failed to copy syslinux.cfg"
-mmd -i floppinux.img ::data || error_exit "Failed to create data dir"
-mcopy -i floppinux.img hello.txt ::data/hello.txt || error_exit "Failed to copy hello.txt"
 
 # Verify floppy size constraint
 FLOPPY_SIZE=$(stat -c%s floppinux.img)

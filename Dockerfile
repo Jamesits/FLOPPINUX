@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work
-COPY build.sh .
+COPY . .
 RUN ./build.sh
 
 FROM scratch AS output

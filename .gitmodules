@@ -1,0 +1,6 @@
+[submodule "linux"]
+	path = linux
+	url = https://github.com/gregkh/linux.git
+[submodule "busybox"]
+	path = busybox
+	url = https://github.com/mirror/busybox.git
