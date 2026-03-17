@@ -113,7 +113,7 @@ $KC --disable XZ_DEC_SPARC
 make -C "$KSRC" O="$KBUILD" ARCH=x86 olddefconfig || error_exit "olddefconfig failed"
 
 echo "compiling kernel..."
-make -C "$KSRC" O="$KBUILD" ARCH=x86 bzImage -j"$(nproc)" 2>&1 | tail -5 || error_exit "Kernel compilation failed"
+make -C "$KSRC" O="$KBUILD" ARCH=x86 bzImage -j"$(nproc)" 2>&1 || error_exit "Kernel compilation failed"
 
 KERNEL_PATH="$KBUILD/arch/x86/boot/bzImage"
 [ -f "$KERNEL_PATH" ] || error_exit "bzImage not found after compilation"
@@ -159,7 +159,7 @@ done
 { yes "" || true; } | make -C "$BBSRC" O="$BBBUILD" ARCH=x86 oldconfig || error_exit "BusyBox oldconfig failed"
 
 echo "compiling busybox..."
-make -C "$BBSRC" O="$BBBUILD" ARCH=x86 -j"$(nproc)" 2>&1 | tail -5 || error_exit "BusyBox compilation failed"
+make -C "$BBSRC" O="$BBBUILD" ARCH=x86 -j"$(nproc)" 2>&1 || error_exit "BusyBox compilation failed"
 make -C "$BBSRC" O="$BBBUILD" ARCH=x86 install || error_exit "BusyBox install failed"
 
 mv "$BBBUILD/_install" "$BASE/filesystem"
