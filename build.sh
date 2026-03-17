@@ -8,6 +8,8 @@ set -euo pipefail
 KERNEL_VERSION="6.14.11"
 KERNEL_MAJOR="6"
 BUSYBOX_TAG="1_36_1"
+MUSL_CROSS_VERSION="20250929"
+MUSL_CROSS_TARGET="i686-unknown-linux-musl"
 
 BASE="$(pwd)/build"
 OUTPUT="$(pwd)/output"
@@ -34,13 +36,14 @@ mkdir -p "$BASE" "$OUTPUT"
 ###############################################################################
 # Cross Compiler
 ###############################################################################
-info "Downloading i486 musl cross compiler..."
+info "Downloading i686 musl cross compiler..."
 cd "$BASE"
-wget -q https://musl.cc/i486-linux-musl-cross.tgz || error_exit "Failed to download cross compiler"
-tar xf i486-linux-musl-cross.tgz
-rm i486-linux-musl-cross.tgz
+wget -q "https://github.com/cross-tools/musl-cross/releases/download/${MUSL_CROSS_VERSION}/${MUSL_CROSS_TARGET}.tar.xz" \
+    || error_exit "Failed to download cross compiler"
+tar xf "${MUSL_CROSS_TARGET}.tar.xz"
+rm "${MUSL_CROSS_TARGET}.tar.xz"
 
-CROSS_PREFIX="$BASE/i486-linux-musl-cross/bin/i486-linux-musl-"
+CROSS_PREFIX="$BASE/${MUSL_CROSS_TARGET}/bin/${MUSL_CROSS_TARGET}-"
 "${CROSS_PREFIX}gcc" --version > /dev/null 2>&1 || error_exit "Cross compiler not functional"
 info "Cross compiler ready"
 
@@ -147,9 +150,9 @@ sed -i 's/main() {}/int main() {}/' scripts/kconfig/lxdialog/check-lxdialog.sh 2
 
 # Cross compiler paths
 sed -i "s|.*CONFIG_CROSS_COMPILER_PREFIX.*|CONFIG_CROSS_COMPILER_PREFIX=\"${CROSS_PREFIX}\"|" .config
-sed -i "s|.*CONFIG_SYSROOT.*|CONFIG_SYSROOT=\"${BASE}/i486-linux-musl-cross\"|" .config
-sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-I${BASE}/i486-linux-musl-cross/include\"|" .config
-sed -i "s|.*CONFIG_EXTRA_LDFLAGS.*|CONFIG_EXTRA_LDFLAGS=\"-L${BASE}/i486-linux-musl-cross/lib\"|" .config
+sed -i "s|.*CONFIG_SYSROOT.*|CONFIG_SYSROOT=\"${BASE}/${MUSL_CROSS_TARGET}/${MUSL_CROSS_TARGET}/sysroot\"|" .config
+sed -i "s|.*CONFIG_EXTRA_CFLAGS.*|CONFIG_EXTRA_CFLAGS=\"-march=i486 -mtune=i486\"|" .config
+sed -i "s|.*CONFIG_EXTRA_LDFLAGS.*|CONFIG_EXTRA_LDFLAGS=\"\"|" .config
 
 # Settings: static binary, large file support
 cat >> .config << 'BUSYBOX_OPTS'
