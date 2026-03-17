@@ -1,8 +1,8 @@
-.PHONY: ALL clean
+.PHONY: all clean
 
-ALL: output/floppinux.img
+all: output/floppinux.img
 
-output/floppinux.img: build.sh syslinux.cfg
+output/floppinux.img: Dockerfile build.sh syslinux.cfg $(shell find rootfs_overrides -type f)
 	docker build . --network=host -o type=local,dest=./output
 
 clean:
