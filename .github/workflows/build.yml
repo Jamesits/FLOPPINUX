@@ -33,7 +33,7 @@ jobs:
           sudo apt-get install -y -qq qemu-system-x86
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build FLOPPINUX in Docker
         uses: docker/build-push-action@v6
